@@ -29,7 +29,7 @@ Easy country and ASN lookup by IP with the free IPInfo database.
     # Required as a third-party handler
     order ipinfo_free first
     # Configure module
-    ipinfo_free__config {
+    ipinfo_free_config {
         url https://ipinfo.io/data/free/country.mmdb?token=magicduck
         cron "10 16 * * *"
         path /tmp/caddy_ipinfo
