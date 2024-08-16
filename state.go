@@ -391,8 +391,13 @@ func (m *IPInfoFreeState) Cleanup() error {
 	if err := m.scheduler.Shutdown(); err != nil {
 		return err
 	}
-	// Close database for cleanup
-	m.db.Close()
+	// Ensure there is a database to cleanup
+	if m.db != nil {
+		// Close database for cleanup
+		if err := m.db.Close(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
