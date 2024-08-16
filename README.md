@@ -76,7 +76,7 @@ Download a caddy binary from `caddyserver.com` with this package included [here]
 Caddy has a feature to add packages to your current installation by running the following command:
 
 ```bash
-caddy add-package https://github.com/oltdaniel/caddy-ipinfo-free
+caddy add-package github.com/oltdaniel/caddy-ipinfo-free
 ```
 
 ### DIY Route
@@ -215,4 +215,4 @@ CADDY_VERSION=master xcaddy build --with github.com/oltdaniel/caddy-ipinfo-free=
 
 <p>IP address data powered by <a href="https://ipinfo.io">IPinfo</a></p>
 
-[MIT License](./LICENSE)
+![GitHub License](https://img.shields.io/github/license/oltdaniel/caddy-ipinfo-free)
