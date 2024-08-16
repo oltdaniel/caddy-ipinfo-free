@@ -63,12 +63,28 @@ ASN: AS13335 Cloudflare, Inc. cloudflare.com
 
 IPInfo distributes their country and ASN databases for free every 24h with full accuracy. With this module and a few lines of config in your `Caddyfile`, you can query the database anywhere with anything.
 
-## Usage
+## Installation
 
-Build a custom binary with this module enabled.
+### Web Download
+
+Download a caddy binary from `caddyserver.com` with this package included [here](https://caddyserver.com/download?package=github.com%2Foltdaniel%2Fcaddy-ipinfo-free).
+
+### CLI Download (experimental)
+
+> This is equal to the version above but replaces your existing binary with the new one including the package.
+
+Caddy has a feature to add packages to your current installation by running the following command:
 
 ```bash
-CADDY_VERSION=master xcaddy build --with github.com/oltdaniel/caddy-ipinfo-free
+caddy add-package https://github.com/oltdaniel/caddy-ipinfo-free
+```
+
+### DIY Route
+
+Build a custom binary of the latest caddy release with this module enabled.
+
+```bash
+CADDY_VERSION=latest xcaddy build --with github.com/oltdaniel/caddy-ipinfo-free
 ./caddy run
 ```
 
