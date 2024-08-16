@@ -74,7 +74,7 @@ CADDY_VERSION=master xcaddy build --with github.com/oltdaniel/caddy-ipinfo-free
 
 ## Directives
 
-### `ipinfo_free_global` (global)
+### `ipinfo_free_config` (global)
 
 #### Examples
 ```
