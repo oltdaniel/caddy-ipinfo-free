@@ -100,6 +100,7 @@ ipinfo_free_config {
     url https://ipinfo.io/data/free/country.mmdb?token=magicduck
     cron "10 16 * * *"
     path /tmp/caddy_ipinfo
+    quiet_on_invalid_ip
 }
 ```
 
@@ -110,7 +111,7 @@ ipinfo_free_config {
 | `url` | valid ipinfo free database url | This url can be easily found in the [Dashboard](https://ipinfo.io/account/data-downloads) of IPInfo after creating an account. Simply choose a database of your choice in the MMDB format and paste the url here. If you only choose the Country or ASN Database, only these values can be extracted and filled into the vairables. The other values will simply be empty. If the Database with both types is chosen, all details will be available. |
 | `cron` | valid crontab notation<br><br>Default: `10 16 * * *` | Customize how often you want to check for a new database. The official time is published by IPInfo in their FAQ [here](https://ipinfo.io/faq/article/141-when-do-the-updates-happen). Timezone is UTC. |
 | `path` | valid path to store the database<br><br>Default: [`os.TempDir()`](https://pkg.go.dev/os#TempDir) with directory `caddy_ipinfo_free` | This will be the path where the databases are stored after download. As there are different kinds of databases, we only accept a path and not a specific filename. Each database will be stored here by their corresponding names from the configured url.<br><br>If the configured path does not exist, the directories will be created. If not path is given, a temporary directory will be created in the systems temporary directory with the name `caddy_ipinfo_free`. |
-| `quiet_on_invalid_ip` | ` `, `enabled`, `true`, `on`, `1`, `disabled`, `false`, `off`, `0` | Default is ` ` and means it will be quiet by default when presented with an invalid IP. If you debug something disabling this is recommended. The Variable `ipinfo_free.error` will be set regardless. The main use-case for this feature is to avoid overloading the logs in production when presented with invalid IPs by the client. |
+| `quiet_on_invalid_ip` | ` `, `enabled`, `true`, `on`, `1`, `disabled`, `false`, `off`, `0` | Default is ` ` (true) and means it will be quiet by default when presented with an invalid IP. If you debug something disabling this is recommended. The Variable `ipinfo_free.error` will be set regardless. The main use-case for this feature is to avoid overloading the logs in production when presented with invalid IPs by the client. |
 
 ### `ipinfo_free` (handler)
 
