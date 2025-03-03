@@ -150,9 +150,11 @@ func (m IPInfoFreeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 	default:
 		ip := m.getClientIP(r)
 		geoip, err := m.lookupIP(ip)
-		if err == nil {
-			repl := r.Context().Value(caddy.ReplacerCtxKey).(*caddy.Replacer)
 
+		repl := r.Context().Value(caddy.ReplacerCtxKey).(*caddy.Replacer)
+
+		if err == nil {
+			repl.Set("ipinfo_free.error", nil)
 			repl.Set("ipinfo_free.ip", ip.String())
 			repl.Set("ipinfo_free.country", geoip.Country)
 			repl.Set("ipinfo_free.country_name", geoip.CountryName)
@@ -162,7 +164,15 @@ func (m IPInfoFreeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 			repl.Set("ipinfo_free.as_name", geoip.ASName)
 			repl.Set("ipinfo_free.as_domain", geoip.ASDomain)
 		} else {
-			m.state.logger.Error(err.Error())
+			repl.Set("ipinfo_free.error", err.Error())
+
+			// Make sure to be silent when invalid ip is presented and it is configured to be silent
+			switch m.state.QuietOnInvalidIP {
+			case "", "enabled", "true", "on", "1":
+				break
+			default:
+				m.state.logger.Error(err.Error())
+			}
 		}
 	}
 

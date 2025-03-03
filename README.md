@@ -30,7 +30,7 @@ Easy country and ASN lookup by IP with the free IPInfo database.
     order ipinfo_free first
     # Configure module
     ipinfo_free_config {
-        url https://ipinfo.io/data/free/country.mmdb?token=magicduck
+        url https://ipinfo.io/data/free/country_asn.mmdb?token=magicduck
         cron "10 16 * * *"
         path /tmp/caddy_ipinfo
     }
@@ -107,9 +107,10 @@ ipinfo_free_config {
 
 | Name | Values | Description |
 |-|-|-|
-| `url` | valid ipinfo free database url | This url can be easily found in the [Dashboard](https://ipinfo.io/account/data-downloads) of IPInfo after creating an account. Simply choose a database of your choice in the MMDB format and paste the url here. |
+| `url` | valid ipinfo free database url | This url can be easily found in the [Dashboard](https://ipinfo.io/account/data-downloads) of IPInfo after creating an account. Simply choose a database of your choice in the MMDB format and paste the url here. If you only choose the Country or ASN Database, only these values can be extracted and filled into the vairables. The other values will simply be empty. If the Database with both types is chosen, all details will be available. |
 | `cron` | valid crontab notation<br><br>Default: `10 16 * * *` | Customize how often you want to check for a new database. The official time is published by IPInfo in their FAQ [here](https://ipinfo.io/faq/article/141-when-do-the-updates-happen). Timezone is UTC. |
 | `path` | valid path to store the database<br><br>Default: [`os.TempDir()`](https://pkg.go.dev/os#TempDir) with directory `caddy_ipinfo_free` | This will be the path where the databases are stored after download. As there are different kinds of databases, we only accept a path and not a specific filename. Each database will be stored here by their corresponding names from the configured url.<br><br>If the configured path does not exist, the directories will be created. If not path is given, a temporary directory will be created in the systems temporary directory with the name `caddy_ipinfo_free`. |
+| `quiet_on_invalid_ip` | ` `, `enabled`, `true`, `on`, `1`, `disabled`, `false`, `off`, `0` | Default is ` ` and means it will be quiet by default when presented with an invalid IP. If you debug something disabling this is recommended. The Variable `ipinfo_free.error` will be set regardless. The main use-case for this feature is to avoid overloading the logs in production when presented with invalid IPs by the client. |
 
 ### `ipinfo_free` (handler)
 
@@ -138,6 +139,7 @@ ipinfo_free "{http.request.uri.query.ip}"
 
 | Variable | Example |
 |-|-|
+| `ipinfo_free.error` | `IP cannot be nil for lookup` |
 | `ipinfo_free.ip` | `1.1.1.1` |
 | `ipinfo_free.country` | `AU` |
 | `ipinfo_free.country_name` | `Australia` |
@@ -181,6 +183,31 @@ Country: {ipinfo_free.country_name} ({ipinfo_free.country})
 Continent: {ipinfo_free.continent_name} ({ipinfo_free.continent})
 ASN: {ipinfo_free.asn} {ipinfo_free.as_name} {ipinfo_free.as_domain}
 TEXT 200
+```
+
+### GeoIP API with Error Handling
+
+```
+@hasIP query ip=*
+
+handle @hasIP {
+    ipinfo_free "{http.request.uri.query.ip}"
+
+    @hasError not vars {ipinfo_free.error} ""
+
+    header Content-Type text/plain
+
+    respond @hasError "Error: {ipinfo_free.error}" 400
+    respond <<TEXT
+    IP: {ipinfo_free.ip}
+                    
+    Country: {ipinfo_free.country_name} ({ipinfo_free.country})
+    Continent: {ipinfo_free.continent_name} ({ipinfo_free.continent})
+    ASN: {ipinfo_free.asn} {ipinfo_free.as_name} {ipinfo_free.as_domain}
+    TEXT 200
+}
+
+respond "Error: Missing 'ip' query parameter" 400
 ```
 
 ### More?

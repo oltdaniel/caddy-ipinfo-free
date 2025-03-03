@@ -39,9 +39,10 @@ func init() {
 
 // Define our module with optional json fields that can be stored by caddy
 type IPInfoFreeState struct {
-	Url  string `json:"url,omitempty"`
-	Cron string `json:"cron,omitempty"`
-	Path string `json:"path,omitempty"`
+	Url              string `json:"url,omitempty"`
+	Cron             string `json:"cron,omitempty"`
+	Path             string `json:"path,omitempty"`
+	QuietOnInvalidIP string `json:"quiet_on_invalid_ip,omitempty"`
 
 	logger    *slog.Logger      `json:"-"`
 	ctx       caddy.Context     `json:"-"`
@@ -89,6 +90,8 @@ func (m *IPInfoFreeState) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 			m.Cron = value
 		case "path":
 			m.Path = value
+		case "quiet_on_invalid_ip":
+			m.QuietOnInvalidIP = value
 		default:
 			// If key not known, throw error
 			return d.ArgErr()
@@ -154,6 +157,18 @@ func (m *IPInfoFreeState) Validate() error {
 	// Verify crontab
 	if _, err := cron.ParseStandard(m.Cron); err != nil {
 		return err
+	}
+
+	// Verify valid values for Quiet on Invalid IP
+	switch m.QuietOnInvalidIP {
+	// This is the state for true (empty = default = true)
+	case "", "enabled", "true", "on", "1":
+		break
+	// This is the state for false
+	case "disabled", "false", "off", "0":
+		break
+	default:
+		return errors.New("Invalid value for 'quiet_on_invalid_ip'.")
 	}
 
 	return nil
