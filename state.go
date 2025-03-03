@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +19,7 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/oschwald/maxminddb-golang"
 	"github.com/robfig/cron/v3"
+	"go.uber.org/zap"
 )
 
 const (
@@ -44,7 +44,7 @@ type IPInfoFreeState struct {
 	Path             string `json:"path,omitempty"`
 	QuietOnInvalidIP string `json:"quiet_on_invalid_ip,omitempty"`
 
-	logger    *slog.Logger      `json:"-"`
+	logger    *zap.Logger       `json:"-"`
 	ctx       caddy.Context     `json:"-"`
 	scheduler gocron.Scheduler  `json:"-"`
 	db        *maxminddb.Reader `json:"-"`
@@ -151,7 +151,7 @@ func (m *IPInfoFreeState) Validate() error {
 	if parsedUrl, err := validateIPInfoFreeUrl(m.Url); err != nil {
 		return err
 	} else {
-		m.logger.Info("ipinfo configured to use", "database_type", path.Base(parsedUrl.Path))
+		m.logger.Info("ipinfo configured to use", zap.String("database_type", path.Base(parsedUrl.Path)))
 	}
 
 	// Verify crontab
@@ -168,7 +168,7 @@ func (m *IPInfoFreeState) Validate() error {
 	case "disabled", "false", "off", "0":
 		break
 	default:
-		return errors.New("Invalid value for 'quiet_on_invalid_ip'.")
+		return errors.New("invalid value for 'quiet_on_invalid_ip'")
 	}
 
 	return nil
@@ -222,7 +222,7 @@ func (m *IPInfoFreeState) getLatestDatabaseChecksums() (*IPInfoFreeChecksumRespo
 		return nil, err
 	}
 
-	m.logger.Debug("current ipinfo checksums", "database_type", path.Base(u.Path), "checksum_sha256", checksums.Checksums.SHA256)
+	m.logger.Debug("current ipinfo checksums", zap.String("database_type", path.Base(u.Path)), zap.String("checksum_sha256", checksums.Checksums.SHA256))
 
 	// Return latest checksums
 	return &checksums, nil
@@ -336,7 +336,7 @@ func (m *IPInfoFreeState) runUpdate() error {
 		// Clean-up by deleting old database
 		os.Remove(databaseFilepath + ".old")
 
-		m.logger.Info("new database downloaded from ipinfo", "filepath", databaseFilepath, "checksum", currentChecksum)
+		m.logger.Info("new database downloaded from ipinfo", zap.String("filepath", databaseFilepath), zap.String("checksum", currentChecksum))
 	}
 
 	return nil
@@ -344,7 +344,7 @@ func (m *IPInfoFreeState) runUpdate() error {
 
 func (m *IPInfoFreeState) Provision(ctx caddy.Context) error {
 	// Remember logger and context
-	m.logger = ctx.Slogger()
+	m.logger = ctx.Logger()
 	m.ctx = ctx
 	// Fallback for contab value
 	m.Cron = cmp.Or(m.Cron, DEFAULT_CRON)
@@ -353,7 +353,7 @@ func (m *IPInfoFreeState) Provision(ctx caddy.Context) error {
 	// Initialize scheduler
 	if scheduler, err := gocron.NewScheduler(
 		gocron.WithLocation(time.UTC),
-		gocron.WithLogger(m.logger),
+		gocron.WithLogger(newZapGocronLogger(m.logger.Name(), m.logger)),
 	); err != nil {
 		return err
 	} else {
