@@ -62,30 +62,19 @@ func (m *IPInfoFreeHandler) Validate() error {
 }
 
 func (m *IPInfoFreeHandler) Provision(ctx caddy.Context) error {
-	// Extract the ipinfo free state that is porivisioned globally
+	// Extract the ipinfo free state that is provisioned globally
 	app, err := ctx.App(ID_MODULE_STATE)
 	if err != nil {
 		return errors.New("failed to retrieve state")
 	}
 	m.state = app.(*IPInfoFreeState)
-	// Rmember the context of the provisioning
+	// Remember the context of the provisioning
 	m.ctx = ctx
 
 	return nil
 }
 
-// Definee struct for ipinfo database format (not all fields filled depending on database type)
-type IPInfoRecord struct {
-	Country       string `maxminddb:"country"`
-	CountryName   string `maxminddb:"country_name"`
-	Continent     string `maxminddb:"continent"`
-	ContinentName string `maxminddb:"continent_name"`
-	ASN           string `maxminddb:"asn"`
-	ASName        string `maxminddb:"as_name"`
-	ASDomain      string `maxminddb:"as_domain"`
-}
-
-func (m *IPInfoFreeHandler) lookupIP(ip net.IP) (*IPInfoRecord, error) {
+func (m *IPInfoFreeHandler) lookupIP(ip net.IP) (*map[string]any, error) {
 	// If there is an empty ip, ignore lookup request
 	if ip == nil {
 		return nil, errors.New("IP cannot be nil for lookup")
@@ -95,7 +84,7 @@ func (m *IPInfoFreeHandler) lookupIP(ip net.IP) (*IPInfoRecord, error) {
 		return nil, errors.New("no database found")
 	}
 	// Allocate lookup record result
-	var record IPInfoRecord
+	var record map[string]any
 	// Query database by given ip
 	err := m.state.db.Lookup(ip, &record)
 	if err != nil {
@@ -132,7 +121,9 @@ func (m *IPInfoFreeHandler) getClientIP(r *http.Request) net.IP {
 		// Get the caddy replacer and replace all placeholders within mode
 		repl := r.Context().Value(caddy.ReplacerCtxKey).(*caddy.Replacer)
 		if newCandidate := repl.ReplaceAll(m.Mode, ""); newCandidate == "" {
-			m.state.logger.Warn("ipinfo_free directive maps to an empty value, defaulting to remote address")
+			if m.state.ErrorOnInvalidIP {
+				m.state.logger.Warn("ipinfo_free directive maps to an empty value, defaulting to remote address")
+			}
 		} else {
 			ipCandidate = newCandidate
 		}
@@ -156,21 +147,15 @@ func (m IPInfoFreeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 		if err == nil {
 			repl.Set("ipinfo_free.error", nil)
 			repl.Set("ipinfo_free.ip", ip.String())
-			repl.Set("ipinfo_free.country", geoip.Country)
-			repl.Set("ipinfo_free.country_name", geoip.CountryName)
-			repl.Set("ipinfo_free.continent", geoip.Continent)
-			repl.Set("ipinfo_free.continent_name", geoip.ContinentName)
-			repl.Set("ipinfo_free.asn", geoip.ASN)
-			repl.Set("ipinfo_free.as_name", geoip.ASName)
-			repl.Set("ipinfo_free.as_domain", geoip.ASDomain)
+
+			for key, value := range *geoip {
+				repl.Set("ipinfo_free."+key, value)
+			}
 		} else {
 			repl.Set("ipinfo_free.error", err.Error())
 
 			// Make sure to be silent when invalid ip is presented and it is configured to be silent
-			switch m.state.QuietOnInvalidIP {
-			case "", "enabled", "true", "on", "1":
-				break
-			default:
+			if m.state.ErrorOnInvalidIP {
 				m.state.logger.Error(err.Error())
 			}
 		}
