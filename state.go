@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/caddyserver/caddy/v2"
@@ -42,7 +43,7 @@ type IPInfoFreeState struct {
 	Url              string `json:"url,omitempty"`
 	Cron             string `json:"cron,omitempty"`
 	Path             string `json:"path,omitempty"`
-	QuietOnInvalidIP string `json:"quiet_on_invalid_ip,omitempty"`
+	ErrorOnInvalidIP bool   `json:"error_on_invalid_ip,omitempty"`
 
 	logger    *zap.Logger       `json:"-"`
 	ctx       caddy.Context     `json:"-"`
@@ -60,7 +61,7 @@ func (IPInfoFreeState) CaddyModule() caddy.ModuleInfo {
 
 // UnmarshalCaddyfile implements caddyfile.Unmarshaler
 func (m *IPInfoFreeState) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
-	// Consume directive as we only have one anway
+	// Consume directive as we only have one anyway
 	d.Next()
 	// Consume next token to determine block or direct url
 	var possibleUrl string
@@ -73,13 +74,14 @@ func (m *IPInfoFreeState) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 		m.Url = possibleUrl
 		return nil
 	}
-	// Iterate of reamining tokens to consume config block
+	// Iterate of remaining tokens to consume config block
 	for d.Next() {
 		var value string
 		// Get current token value as key
 		key := d.Val()
 		// Consume left over arguments
 		if !d.Args(&value) {
+			fmt.Println(key)
 			continue
 		}
 		// Consume all config keys we accept
@@ -90,8 +92,15 @@ func (m *IPInfoFreeState) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 			m.Cron = value
 		case "path":
 			m.Path = value
-		case "quiet_on_invalid_ip":
-			m.QuietOnInvalidIP = value
+		case "error_on_invalid_ip":
+			{
+				// Parse value with strconv
+				val, err := strconv.ParseBool(value)
+				if err != nil {
+					return d.WrapErr(err)
+				}
+				m.ErrorOnInvalidIP = val
+			}
 		default:
 			// If key not known, throw error
 			return d.ArgErr()
@@ -116,6 +125,8 @@ func parseCaddyfileConfig(d *caddyfile.Dispenser, _ any) (any, error) {
 func validateIPInfoFreeUrl(givenUrl string) (*url.URL, error) {
 	// Example or expected data url:
 	// https://ipinfo.io/data/free/asn.mmdb?token=magicduck
+	// New Lite Database Format:
+	// https://ipinfo.io/data/ipinfo_lite.mmdb?token=magicduck
 
 	u, err := url.Parse(givenUrl)
 	if err != nil {
@@ -130,7 +141,10 @@ func validateIPInfoFreeUrl(givenUrl string) (*url.URL, error) {
 		return u, errors.New("invalid ipinfo url hostname. expected ipinfo.io")
 	}
 
-	if u.Path != "/data/free/asn.mmdb" && u.Path != "/data/free/country.mmdb" && u.Path != "/data/free/country_asn.mmdb" {
+	switch u.Path {
+	case "/data/free/asn.mmdb", "/data/free/country.mmdb", "/data/free/country_asn.mmdb":
+	case "/data/ipinfo_lite.mmdb":
+	default:
 		return u, errors.New("invalid ipinfo free dataset path")
 	}
 
@@ -157,18 +171,6 @@ func (m *IPInfoFreeState) Validate() error {
 	// Verify crontab
 	if _, err := cron.ParseStandard(m.Cron); err != nil {
 		return err
-	}
-
-	// Verify valid values for Quiet on Invalid IP
-	switch m.QuietOnInvalidIP {
-	// This is the state for true (empty = default = true)
-	case "", "enabled", "true", "on", "1":
-		break
-	// This is the state for false
-	case "disabled", "false", "off", "0":
-		break
-	default:
-		return errors.New("invalid value for 'quiet_on_invalid_ip'")
 	}
 
 	return nil

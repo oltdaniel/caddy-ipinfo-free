@@ -30,7 +30,7 @@ Easy country and ASN lookup by IP with the free IPInfo database.
     order ipinfo_free first
     # Configure module
     ipinfo_free_config {
-        url https://ipinfo.io/data/free/country_asn.mmdb?token=magicduck
+        url https://ipinfo.io/data/ipinfo_lite.mmdb?token=magicduck
         cron "10 16 * * *"
         path /tmp/caddy_ipinfo
     }
@@ -43,8 +43,8 @@ Easy country and ASN lookup by IP with the free IPInfo database.
     respond <<TEXT
     IP: {ipinfo_free.ip}
                 
-    Country: {ipinfo_free.country_name} ({ipinfo_free.country})
-    Continent: {ipinfo_free.continent_name} ({ipinfo_free.continent})
+    Country: {ipinfo_free.country} ({ipinfo_free.country_code})
+    Continent: {ipinfo_free.continent} ({ipinfo_free.continent_code})
     ASN: {ipinfo_free.asn} {ipinfo_free.as_name} {ipinfo_free.as_domain}
     TEXT 200
 }
@@ -94,13 +94,13 @@ CADDY_VERSION=latest xcaddy build --with github.com/oltdaniel/caddy-ipinfo-free
 
 #### Examples
 ```
-ipinfo_free_config https://ipinfo.io/data/free/country.mmdb?token=magicduck
+ipinfo_free_config https://ipinfo.io/data/ipinfo_lite.mmdb?token=magicduck
 
 ipinfo_free_config {
-    url https://ipinfo.io/data/free/country.mmdb?token=magicduck
+    url https://ipinfo.io/data/ipinfo_lite.mmdb?token=magicduck
     cron "10 16 * * *"
     path /tmp/caddy_ipinfo
-    quiet_on_invalid_ip
+    error_on_invalid_ip true
 }
 ```
 
@@ -108,10 +108,10 @@ ipinfo_free_config {
 
 | Name | Values | Description |
 |-|-|-|
-| `url` | valid ipinfo free database url | This url can be easily found in the [Dashboard](https://ipinfo.io/account/data-downloads) of IPInfo after creating an account. Simply choose a database of your choice in the MMDB format and paste the url here. If you only choose the Country or ASN Database, only these values can be extracted and filled into the vairables. The other values will simply be empty. If the Database with both types is chosen, all details will be available. |
+| `url` | valid ipinfo free database url | This url can be easily found in the [Dashboard](https://ipinfo.io/dashboard/downloads) of IPInfo after creating an account. Simply choose a database of your choice in the MMDB format and paste the url here. If you only choose the Country or ASN Database, only these values can be extracted and filled into the variables. The other values will simply be empty. If the Database with both types is chosen, all details will be available. |
 | `cron` | valid crontab notation<br><br>Default: `10 16 * * *` | Customize how often you want to check for a new database. The official time is published by IPInfo in their FAQ [here](https://ipinfo.io/faq/article/141-when-do-the-updates-happen). Timezone is UTC. |
 | `path` | valid path to store the database<br><br>Default: [`os.TempDir()`](https://pkg.go.dev/os#TempDir) with directory `caddy_ipinfo_free` | This will be the path where the databases are stored after download. As there are different kinds of databases, we only accept a path and not a specific filename. Each database will be stored here by their corresponding names from the configured url.<br><br>If the configured path does not exist, the directories will be created. If not path is given, a temporary directory will be created in the systems temporary directory with the name `caddy_ipinfo_free`. |
-| `quiet_on_invalid_ip` | ` `, `enabled`, `true`, `on`, `1`, `disabled`, `false`, `off`, `0` | Default is ` ` (true) and means it will be quiet by default when presented with an invalid IP. If you debug something disabling this is recommended. The Variable `ipinfo_free.error` will be set regardless. The main use-case for this feature is to avoid overloading the logs in production when presented with invalid IPs by the client. |
+| `error_on_invalid_ip` | accepted input for [`strconv.ParseBool`](https://pkg.go.dev/strconv#ParseBool) <br><br>Default: `false` | Allows enabling error logs when an invalid ip is given to the handler. If you debug something enabling this is recommended. The Variable `ipinfo_free.error` will be set regardless. The main use-case for this feature is to avoid overloading the logs in production when presented with invalid IPs by the client. **NOTE**: Previously known as `quiet_on_invalid_ip`, which made it more difficult to properly handle the default true state. |
 
 ### `ipinfo_free` (handler)
 
@@ -134,9 +134,15 @@ ipinfo_free "{http.request.uri.query.ip}"
 | `enabled`, `true`, `on`, `1`, `strict`, empty | The remote address of the request will be used to lookup the ip information. |
 | `forwarded` | Use the IP set in the `X-Forwarded-For` Header if present, else it will fallback to the remote address of the request. |
 | `trusted` | Same as `forwarded` but it will make sure that the ip from which the request comes is listed as a trusted proxy in the current caddy environment. |
-| any value that is an IPv4 or IPv6 | The mode field supportes the [Caddy placeholders ](https://caddyserver.com/docs/json/apps/http/#docs) which allows you to fully customize the IP that is used for lookup.<br><br>**NOTE**: If the value maps to an empty string, the remote address of the client will be used as a fallback. |
+| any value that is an IPv4 or IPv6 | The mode field supports the [Caddy placeholders ](https://caddyserver.com/docs/json/apps/http/#docs) which allows you to fully customize the IP that is used for lookup.<br><br>**NOTE**: If the value maps to an empty string, the remote address of the client will be used as a fallback. |
 
 ## Placeholder Variables
+
+> In order to support both the legacy free data downloads and the new lite database, all entry columns are exposed from the MMDB. 
+
+IPInfo switched from the old legacy format to the new lite database format, [Introducing IPinfo Lite: Free, Accurate, and Unlimited IP Data for Everyone](https://ipinfo.io/blog/ipinfo-lite-free-accurate-unlimited-ip-data).
+
+### Legacy Free Database
 
 | Variable | Example |
 |-|-|
@@ -146,6 +152,20 @@ ipinfo_free "{http.request.uri.query.ip}"
 | `ipinfo_free.country_name` | `Australia` |
 | `ipinfo_free.continent` | `OC` |
 | `ipinfo_free.continent_name`| `Oceania` |
+| `ipinfo_free.asn` | `AS13335` |
+| `ipinfo_free.as_name` | `Cloudflare, Inc.` | 
+| `ipinfo_free.as_domain` | `cloudflare.com` |
+
+### New Lite Database
+
+| Variable | Example |
+|-|-|
+| `ipinfo_free.error` | `IP cannot be nil for lookup` |
+| `ipinfo_free.ip` | `1.1.1.1` |
+| `ipinfo_free.country` | `Australia` |
+| `ipinfo_free.country_code` | `AU` |
+| `ipinfo_free.continent` | `Oceania` |
+| `ipinfo_free.continent_code`| `OC` |
 | `ipinfo_free.asn` | `AS13335` |
 | `ipinfo_free.as_name` | `Cloudflare, Inc.` | 
 | `ipinfo_free.as_domain` | `cloudflare.com` |
@@ -163,10 +183,10 @@ ipinfo_free
 
 header Content-Type text/plain
 
-@dach expression ({ipinfo_free.country} in ["DE", "CH", "AT"])
+@dach expression ({ipinfo_free.country_code} in ["DE", "CH", "AT"])
 
 respond @dach "Hallo Besucher aus der DACH-Region!"
-respond "Hello visistor from {ipinfo_free.country_name}"
+respond "Hello visitor from {ipinfo_free.country}"
 ```
 
 ### Simple GeoIP API
@@ -180,8 +200,8 @@ header Content-Type text/plain
 respond <<TEXT
 IP: {ipinfo_free.ip}
             
-Country: {ipinfo_free.country_name} ({ipinfo_free.country})
-Continent: {ipinfo_free.continent_name} ({ipinfo_free.continent})
+Country: {ipinfo_free.country} ({ipinfo_free.country_code})
+Continent: {ipinfo_free.continent} ({ipinfo_free.continent_code})
 ASN: {ipinfo_free.asn} {ipinfo_free.as_name} {ipinfo_free.as_domain}
 TEXT 200
 ```
@@ -202,8 +222,8 @@ handle @hasIP {
     respond <<TEXT
     IP: {ipinfo_free.ip}
                     
-    Country: {ipinfo_free.country_name} ({ipinfo_free.country})
-    Continent: {ipinfo_free.continent_name} ({ipinfo_free.continent})
+    Country: {ipinfo_free.country} ({ipinfo_free.country_code})
+    Continent: {ipinfo_free.continent} ({ipinfo_free.continent_code})
     ASN: {ipinfo_free.asn} {ipinfo_free.as_name} {ipinfo_free.as_domain}
     TEXT 200
 }
