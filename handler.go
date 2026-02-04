@@ -2,7 +2,7 @@ package caddyipinfofree
 
 import (
 	"errors"
-	"net"
+	"net/netip"
 	"net/http"
 	"strings"
 
@@ -21,6 +21,8 @@ func init() {
 	caddy.RegisterModule(IPInfoFreeHandler{})
 	httpcaddyfile.RegisterHandlerDirective("ipinfo_free", parseCaddyfileHandler)
 }
+
+type MMDBResult = map[string]any
 
 type IPInfoFreeHandler struct {
 	Mode string `json:"mode,omitempty"`
@@ -74,9 +76,9 @@ func (m *IPInfoFreeHandler) Provision(ctx caddy.Context) error {
 	return nil
 }
 
-func (m *IPInfoFreeHandler) lookupIP(ip net.IP) (*map[string]any, error) {
-	// If there is an empty ip, ignore lookup request
-	if ip == nil {
+func (m *IPInfoFreeHandler) lookupIP(ip netip.Addr) (*MMDBResult, error) {
+	// If there is an uninitialized ip, ignore lookup request
+	if !ip.IsValid() {
 		return nil, errors.New("IP cannot be nil for lookup")
 	}
 	// If there is no database, ignore lookup request
@@ -84,9 +86,9 @@ func (m *IPInfoFreeHandler) lookupIP(ip net.IP) (*map[string]any, error) {
 		return nil, errors.New("no database found")
 	}
 	// Allocate lookup record result
-	var record map[string]any
+	var record MMDBResult
 	// Query database by given ip
-	err := m.state.db.Lookup(ip, &record)
+	err := m.state.db.Lookup(ip).Decode(&record)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +96,7 @@ func (m *IPInfoFreeHandler) lookupIP(ip net.IP) (*map[string]any, error) {
 	return &record, nil
 }
 
-func (m *IPInfoFreeHandler) getClientIP(r *http.Request) net.IP {
+func (m *IPInfoFreeHandler) getClientIP(r *http.Request) (netip.Addr, error) {
 	// We handle the remote address as default fallback value
 	ipCandidate := strings.Split(r.RemoteAddr, ":")[0]
 	// Overwrite value depending on mode
@@ -129,7 +131,7 @@ func (m *IPInfoFreeHandler) getClientIP(r *http.Request) net.IP {
 		}
 	}
 
-	return net.ParseIP(ipCandidate)
+	return netip.ParseAddr(ipCandidate)
 }
 
 func (m IPInfoFreeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.Handler) error {
@@ -139,25 +141,32 @@ func (m IPInfoFreeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 	case "", "enabled", "true", "on", "1", "strict", "forwarded", "trusted":
 		fallthrough
 	default:
-		ip := m.getClientIP(r)
-		geoip, err := m.lookupIP(ip)
-
 		repl := r.Context().Value(caddy.ReplacerCtxKey).(*caddy.Replacer)
 
-		if err == nil {
-			repl.Set("ipinfo_free.error", nil)
-			repl.Set("ipinfo_free.ip", ip.String())
+		ip, err := m.getClientIP(r)
 
-			for key, value := range *geoip {
-				repl.Set("ipinfo_free."+key, value)
-			}
-		} else {
+		var geoip *MMDBResult
+		// Only lookup when we got an IP
+		if err == nil {
+			geoip, err = m.lookupIP(ip)
+		}
+
+		if err != nil {
 			repl.Set("ipinfo_free.error", err.Error())
 
 			// Make sure to be silent when invalid ip is presented and it is configured to be silent
 			if m.state.ErrorOnInvalidIP {
 				m.state.logger.Error(err.Error())
 			}
+
+			return next.ServeHTTP(w, r)
+		}
+
+		repl.Set("ipinfo_free.error", nil)
+		repl.Set("ipinfo_free.ip", ip.String())
+
+		for key, value := range *geoip {
+			repl.Set("ipinfo_free."+key, value)
 		}
 	}
 
