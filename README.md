@@ -24,7 +24,7 @@ Easy country and ASN lookup by IP with the free IPInfo database.
 
 ## Example
 
-```
+```caddyfile
 {
     # Required as a third-party handler
     order ipinfo_free first
@@ -93,7 +93,7 @@ CADDY_VERSION=latest xcaddy build --with github.com/oltdaniel/caddy-ipinfo-free
 ### `ipinfo_free_config` (global)
 
 #### Examples
-```
+```caddyfile
 ipinfo_free_config https://ipinfo.io/data/ipinfo_lite.mmdb?token=magicduck
 
 ipinfo_free_config {
@@ -117,7 +117,7 @@ ipinfo_free_config {
 
 #### Examples
 
-```
+```caddyfile
 ipinfo_free
 ipinfo_free 1
 ipinfo_free on
@@ -178,7 +178,7 @@ IPInfo switched from the old legacy format to the new lite database format, [Int
 
 This is a simple example on how the response can be changed for certain countries.
 
-```
+```caddyfile
 ipinfo_free
 
 header Content-Type text/plain
@@ -193,7 +193,7 @@ respond "Hello visitor from {ipinfo_free.country}"
 
 Simply query with `http://localhost:8080/?ip=IP`.
 
-```
+```caddyfile
 ipinfo_free "{http.request.uri.query.ip}"
 
 header Content-Type text/plain
@@ -208,7 +208,7 @@ TEXT 200
 
 ### GeoIP API with Error Handling
 
-```
+```caddyfile
 @hasIP query ip=*
 
 handle @hasIP {
