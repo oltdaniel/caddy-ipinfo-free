@@ -132,8 +132,8 @@ ipinfo_free "{http.request.uri.query.ip}"
 |-|-|
 | `disabled`, `false`, `off`, `0` | Explicit disabling of looking up ip information. |
 | `enabled`, `true`, `on`, `1`, `strict`, empty | The remote address of the request will be used to lookup the ip information. |
-| `forwarded` | Use the IP set in the `X-Forwarded-For` Header if present, else it will fallback to the remote address of the request. |
-| `trusted` | Same as `forwarded` but it will make sure that the ip from which the request comes is listed as a trusted proxy in the current caddy environment. |
+| `forwarded` | Use the client IP from the `X-Forwarded-For` header if present (leftmost entry when multiple hops are listed; IPv4 and IPv6 supported). Falls back to the remote address of the request if the header is absent. |
+| `trusted` | Same as `forwarded` but only honored when the immediate peer is listed as a trusted proxy in the current Caddy environment. |
 | any value that is an IPv4 or IPv6 | The mode field supports the [Caddy placeholders ](https://caddyserver.com/docs/json/apps/http/#docs) which allows you to fully customize the IP that is used for lookup.<br><br>**NOTE**: If the value maps to an empty string, the remote address of the client will be used as a fallback. |
 
 ## Placeholder Variables

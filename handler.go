@@ -2,8 +2,9 @@ package caddyipinfofree
 
 import (
 	"errors"
-	"net/netip"
+	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 
 	"github.com/caddyserver/caddy/v2"
@@ -96,32 +97,41 @@ func (m *IPInfoFreeHandler) lookupIP(ip netip.Addr) (*MMDBResult, error) {
 	return &record, nil
 }
 
+// We only care about the first ip in the X-Forwarded-For header
+func firstForwardedFor(header string) string {
+	if comma := strings.IndexByte(header, ','); comma >= 0 {
+		header = header[:comma]
+	}
+	return strings.TrimSpace(header)
+}
+
 func (m *IPInfoFreeHandler) getClientIP(r *http.Request) (netip.Addr, error) {
 	// We handle the remote address as default fallback value
-	ipCandidate := strings.Split(r.RemoteAddr, ":")[0]
+	ipCandidate, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return netip.Addr{}, err
+	}
 	// Overwrite value depending on mode
 	switch m.Mode {
-	case "":
-	case "enabled":
-	case "true":
-	case "on":
-	case "1":
-	case "strict":
-		break
+	case "", "enabled", "true", "on", "1", "strict":
+		// Keep remote address
 	case "forwarded":
 		// Read ip from official header
-		if header := r.Header.Get("X-Forwarded-For"); header != "" {
-			ipCandidate = header
+		if candidate := firstForwardedFor(r.Header.Get("X-Forwarded-For")); candidate != "" {
+			ipCandidate = candidate
 		}
 	case "trusted":
 		// Read ip from official header if it comes from a trusted proxy
-		trustedProxy := caddyhttp.GetVar(r.Context(), caddyhttp.TrustedProxyVarKey).(bool)
-		if header := r.Header.Get("X-Forwarded-For"); header != "" && trustedProxy {
-			ipCandidate = header
+		trustedProxy, _ := caddyhttp.GetVar(r.Context(), caddyhttp.TrustedProxyVarKey).(bool)
+		if candidate := firstForwardedFor(r.Header.Get("X-Forwarded-For")); candidate != "" && trustedProxy {
+			ipCandidate = candidate
 		}
 	default:
 		// Get the caddy replacer and replace all placeholders within mode
-		repl := r.Context().Value(caddy.ReplacerCtxKey).(*caddy.Replacer)
+		repl, ok := r.Context().Value(caddy.ReplacerCtxKey).(*caddy.Replacer)
+		if !ok {
+			return netip.Addr{}, errors.New("caddy replacer missing from request context")
+		}
 		if newCandidate := repl.ReplaceAll(m.Mode, ""); newCandidate == "" {
 			if m.state.ErrorOnInvalidIP {
 				m.state.logger.Warn("ipinfo_free directive maps to an empty value, defaulting to remote address")
